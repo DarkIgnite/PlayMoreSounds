@@ -51,6 +51,16 @@ public class PlayableRichSound extends RichSound<PlayableSound> implements Delay
 
     @Override
     public void play(@Nullable Player player, @NotNull Location sourceLocation) {
+        play(player, null, sourceLocation);
+    }
+
+    public void play(@Nullable Player player, @Nullable Collection<Player> recipients) {
+        if (player != null) {
+            play(player, recipients, player.getLocation());
+        }
+    }
+
+    public void play(@Nullable Player player, @Nullable Collection<Player> recipients, @NotNull Location sourceLocation) {
         if (isEnabled() && !getChildSounds().isEmpty()) {
             var event = new PlayRichSoundEvent(player, sourceLocation, this);
 
@@ -59,12 +69,16 @@ public class PlayableRichSound extends RichSound<PlayableSound> implements Delay
             if (event.isCancelled()) return;
 
             for (PlayableSound s : getChildSounds())
-                s.play(player, event.location);
+                s.play(player, recipients, event.location);
         }
     }
 
     @Override
     public @NotNull RichPlayResult playDelayable(@Nullable Player player, @NotNull Location sourceLocation) {
+        return playDelayable(player, null, sourceLocation);
+    }
+
+    public @NotNull RichPlayResult playDelayable(@Nullable Player player, @Nullable Collection<Player> recipients, @NotNull Location sourceLocation) {
         if (isEnabled() && !getChildSounds().isEmpty()) {
             var event = new PlayRichSoundEvent(player, sourceLocation, this);
 
@@ -76,7 +90,7 @@ public class PlayableRichSound extends RichSound<PlayableSound> implements Delay
             var tasks = new ArrayList<BukkitTask>();
 
             for (PlayableSound s : getChildSounds()) {
-                ChildPlayResult result = s.playDelayable(player, event.location);
+                ChildPlayResult result = s.playDelayable(player, recipients, event.location);
                 listeners.addAll(result.listeners());
                 if (result.delayedTask() != null) tasks.add(result.delayedTask());
             }
@@ -87,20 +101,6 @@ public class PlayableRichSound extends RichSound<PlayableSound> implements Delay
         return new RichPlayResult(Collections.emptyList(), Collections.emptyList());
     }
 
-    /**
-     * Plays the sound repeatedly after the time set on period.
-     * The {@link BukkitRunnable} will be cancelled if the sound is disabled, has no child sounds or if the player is no
-     * longer online, in case there is one.
-     * {@link PlayRichSoundEvent} will be called for every time the sound is played by this loop.
-     *
-     * @param player         The player to play the sound.
-     * @param sourceLocation The location where the sound will play.
-     * @param delay          The time in ticks to wait before playing the first sound.
-     * @param period         The time in ticks to wait before playing the sound again.
-     * @param breaker        A boolean that will run in the loop, if the boolean is true the loop will be cancelled.
-     * @return The {@link BukkitRunnable} of the loop that can be used to cancel later.
-     * @throws IllegalStateException If PlayMoreSounds was not instantiated by bukkit yet.
-     */
     public @NotNull BukkitRunnable playInLoop(@Nullable Player player, @NotNull Supplier<Location> sourceLocation, long delay, long period, @Nullable Supplier<Boolean> breaker) {
         var main = PlayMoreSounds.getInstance();
         if (main == null) throw new IllegalStateException("PlayMoreSounds is not loaded.");

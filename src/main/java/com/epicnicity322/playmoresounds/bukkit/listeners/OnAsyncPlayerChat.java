@@ -23,6 +23,7 @@ import com.epicnicity322.playmoresounds.bukkit.sound.PlayableRichSound;
 import com.epicnicity322.playmoresounds.core.config.Configurations;
 import com.epicnicity322.yamlhandler.ConfigurationSection;
 import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.HandlerList;
@@ -32,6 +33,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 public final class OnAsyncPlayerChat extends PMSListener {
@@ -98,10 +100,13 @@ public final class OnAsyncPlayerChat extends PMSListener {
     }
 
     @SuppressWarnings("deprecation")
-    @EventHandler(priority = EventPriority.HIGHEST)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onAsyncPlayerChat(AsyncPlayerChatEvent event) {
+        if (event.isCancelled()) return;
+
         var message = event.getMessage();
         var player = event.getPlayer();
+        Set<Player> recipients = new HashSet<>(event.getRecipients());
         boolean defaultSound = getRichSound() != null;
 
         filterLoop:
@@ -111,7 +116,7 @@ public final class OnAsyncPlayerChat extends PMSListener {
 
                 if (!event.isCancelled() || !criteria.isCancellable()) {
                     if (matchesFilter(filter.getKey(), criteriaSection.getName(), message)) {
-                        Bukkit.getScheduler().runTask(plugin, () -> criteria.play(player));
+                        Bukkit.getScheduler().runTask(plugin, () -> criteria.play(player, recipients));
 
                         if (criteriaSection.getBoolean("Prevent Other Sounds.Default Sound").orElse(false))
                             defaultSound = false;
@@ -124,6 +129,6 @@ public final class OnAsyncPlayerChat extends PMSListener {
         }
 
         if (defaultSound && (!event.isCancelled() || !getRichSound().isCancellable()))
-            Bukkit.getScheduler().runTask(plugin, () -> getRichSound().play(player));
+            Bukkit.getScheduler().runTask(plugin, () -> getRichSound().play(player, recipients));
     }
 }

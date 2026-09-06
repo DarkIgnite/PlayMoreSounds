@@ -31,8 +31,10 @@ import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 
 public class PlayableSound extends Sound implements Delayable {
     public PlayableSound(@Nullable String id, @NotNull String sound, @Nullable SoundCategory category, float volume, float pitch, long delay, @Nullable SoundOptions options) {
@@ -62,6 +64,10 @@ public class PlayableSound extends Sound implements Delayable {
 
     @Override
     public @NotNull ChildPlayResult playDelayable(@Nullable Player player, @NotNull Location sourceLocation) {
+        return playDelayable(player, null, sourceLocation);
+    }
+
+    public @NotNull ChildPlayResult playDelayable(@Nullable Player player, @Nullable Collection<Player> allowedRecipients, @NotNull Location sourceLocation) {
         SoundOptions options = getOptions();
         final Collection<Player> listeners;
 
@@ -74,7 +80,7 @@ public class PlayableSound extends Sound implements Delayable {
 
             // Sound should only be played to the source player if radius is 0, the game mode is spectator, or if they are valid to be in invisibility mode.
             if (options.getRadius() == 0.0 || player.getGameMode() == GameMode.SPECTATOR || (player.hasPotionEffect(PotionEffectType.INVISIBILITY) && player.hasPermission("playmoresounds.bypass.invisibility"))) {
-                listeners = Collections.singleton(player);
+                listeners = new HashSet<>(Collections.singleton(player));
             } else {
                 listeners = SoundManager.getInRange(options.getRadius(), sourceLocation);
             }
@@ -82,15 +88,23 @@ public class PlayableSound extends Sound implements Delayable {
             listeners = SoundManager.getInRange(options.getRadius(), sourceLocation);
         }
 
+        if (allowedRecipients != null) {
+            listeners.retainAll(allowedRecipients);
+        }
+
         if (getDelay() == 0) {
-            play(player, listeners, sourceLocation);
+            playInternal(player, listeners, sourceLocation);
             return new ChildPlayResult(listeners, null);
         } else {
-            return new ChildPlayResult(listeners, Bukkit.getScheduler().runTaskLater(PlayMoreSounds.getInstance(), () -> play(player, listeners, sourceLocation), getDelay()));
+            return new ChildPlayResult(listeners, Bukkit.getScheduler().runTaskLater(PlayMoreSounds.getInstance(), () -> playInternal(player, listeners, sourceLocation), getDelay()));
         }
     }
 
-    private void play(@Nullable Player sourcePlayer, @NotNull Collection<Player> listeners, @NotNull Location soundLocation) {
+    public void play(@Nullable Player player, @Nullable Collection<Player> allowedRecipients, @NotNull Location sourceLocation) {
+        playDelayable(player, allowedRecipients, sourceLocation);
+    }
+
+    private void playInternal(@Nullable Player sourcePlayer, @NotNull Collection<Player> listeners, @NotNull Location soundLocation) {
         // Calling PlaySoundEvent.
         var event = new PlaySoundEvent(this, sourcePlayer, soundLocation, listeners, getOptions().getRadius() == -1.0 || getOptions().getRadius() == -2.0);
 
@@ -99,7 +113,7 @@ public class PlayableSound extends Sound implements Delayable {
         if (event.isCancelled()) return;
 
         // Playing the sound to the valid listeners.
-        for (Player listener : listeners) {
+        for (Player listener : new ArrayList<>(listeners)) {
             if (!event.validateListener(listener)) continue;
 
             if (event.playingGlobally()) {
