@@ -119,7 +119,7 @@ public class PlaySoundEvent extends Event implements Cancellable {
         return global;
     }
 
-    private static boolean isChatDisabledInChatControl(@NotNull UUID uuid) {
+    public static boolean isChatDisabledInChatControl(@NotNull UUID uuid) {
         try {
             org.bukkit.plugin.Plugin ccPlugin = Bukkit.getPluginManager().getPlugin("ChatControl");
             if (ccPlugin != null && ccPlugin.isEnabled()) {
@@ -138,11 +138,9 @@ public class PlaySoundEvent extends Event implements Cancellable {
     public boolean validateListener(@NotNull Player listener) {
         SoundOptions options = getSound().getOptions();
 
-        // If this sound is triggered by another player's chat and listener has disabled chat via ChatControl
-        if (sourcePlayer != null && !sourcePlayer.getUniqueId().equals(listener.getUniqueId())) {
-            if (isChatDisabledInChatControl(listener.getUniqueId())) {
-                return false;
-            }
+        // If listener has disabled chat via ChatControl, do NOT play any chat sound to this listener
+        if (isChatDisabledInChatControl(listener.getUniqueId())) {
+            return false;
         }
 
         return (options.ignoresDisabled() || SoundManager.getSoundsState(listener))

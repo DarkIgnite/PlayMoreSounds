@@ -19,6 +19,7 @@
 package com.epicnicity322.playmoresounds.bukkit.listeners;
 
 import com.epicnicity322.playmoresounds.bukkit.PlayMoreSounds;
+import com.epicnicity322.playmoresounds.bukkit.sound.PlaySoundEvent;
 import com.epicnicity322.playmoresounds.bukkit.sound.PlayableRichSound;
 import com.epicnicity322.playmoresounds.core.config.Configurations;
 import com.epicnicity322.yamlhandler.ConfigurationSection;
@@ -153,7 +154,9 @@ public final class OnAsyncPlayerChat extends PMSListener {
         Set<Player> recipients = new HashSet<>();
         for (Audience audience : event.viewers()) {
             if (audience instanceof Player p) {
-                recipients.add(p);
+                if (!PlaySoundEvent.isChatDisabledInChatControl(p.getUniqueId())) {
+                    recipients.add(p);
+                }
             }
         }
 
@@ -165,7 +168,7 @@ public final class OnAsyncPlayerChat extends PMSListener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onAsyncPlayerChat(AsyncPlayerChatEvent event) {
         if (IS_PAPER) {
-            // Already handled natively by onPaperAsyncChat
+            // Handled natively by onPaperAsyncChat
             return;
         }
 
@@ -173,7 +176,13 @@ public final class OnAsyncPlayerChat extends PMSListener {
 
         Player player = event.getPlayer();
         String message = event.getMessage();
-        Set<Player> recipients = new HashSet<>(event.getRecipients());
+
+        Set<Player> recipients = new HashSet<>();
+        for (Player p : event.getRecipients()) {
+            if (!PlaySoundEvent.isChatDisabledInChatControl(p.getUniqueId())) {
+                recipients.add(p);
+            }
+        }
 
         processChatSounds(player, message, recipients, event.isCancelled());
     }
