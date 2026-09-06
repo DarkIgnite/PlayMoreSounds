@@ -22,6 +22,9 @@ import com.epicnicity322.playmoresounds.bukkit.PlayMoreSounds;
 import com.epicnicity322.playmoresounds.bukkit.sound.PlayableRichSound;
 import com.epicnicity322.playmoresounds.core.config.Configurations;
 import com.epicnicity322.yamlhandler.ConfigurationSection;
+import io.papermc.paper.event.player.AsyncChatEvent;
+import net.kyori.adventure.audience.Audience;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -30,6 +33,7 @@ import org.bukkit.event.HandlerList;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.jetbrains.annotations.NotNull;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -37,6 +41,17 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 public final class OnAsyncPlayerChat extends PMSListener {
+    private static final boolean IS_PAPER;
+    static {
+        boolean paper = false;
+        try {
+            Class.forName("io.papermc.paper.event.player.AsyncChatEvent");
+            paper = true;
+        } catch (Throwable ignored) {
+        }
+        IS_PAPER = paper;
+    }
+
     private final @NotNull HashMap<String, HashSet<PlayableRichSound>> filtersAndCriteria = new HashMap<>();
 
     public OnAsyncPlayerChat(@NotNull PlayMoreSounds plugin) {
@@ -99,14 +114,9 @@ public final class OnAsyncPlayerChat extends PMSListener {
         }
     }
 
-    @SuppressWarnings("deprecation")
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onAsyncPlayerChat(AsyncPlayerChatEvent event) {
-        if (event.isCancelled()) return;
+    private void processChatSounds(@NotNull Player player, @NotNull String message, @NotNull Collection<Player> recipients, boolean isCancelled) {
+        if (isCancelled) return;
 
-        var message = event.getMessage();
-        var player = event.getPlayer();
-        Set<Player> recipients = new HashSet<>(event.getRecipients());
         boolean defaultSound = getRichSound() != null;
 
         filterLoop:
@@ -114,7 +124,7 @@ public final class OnAsyncPlayerChat extends PMSListener {
             for (var criteria : filter.getValue()) {
                 ConfigurationSection criteriaSection = criteria.getSection();
 
-                if (!event.isCancelled() || !criteria.isCancellable()) {
+                if (!isCancelled || !criteria.isCancellable()) {
                     if (matchesFilter(filter.getKey(), criteriaSection.getName(), message)) {
                         Bukkit.getScheduler().runTask(plugin, () -> criteria.play(player, recipients));
 
@@ -128,7 +138,43 @@ public final class OnAsyncPlayerChat extends PMSListener {
             }
         }
 
-        if (defaultSound && (!event.isCancelled() || !getRichSound().isCancellable()))
+        if (defaultSound && (!isCancelled || !getRichSound().isCancellable()))
             Bukkit.getScheduler().runTask(plugin, () -> getRichSound().play(player, recipients));
+    }
+
+    // 1. Paper Native AsyncChatEvent (Paper 1.21+)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onPaperAsyncChat(AsyncChatEvent event) {
+        if (event.isCancelled()) return;
+
+        Player player = event.getPlayer();
+        String message = PlainTextComponentSerializer.plainText().serialize(event.message());
+
+        Set<Player> recipients = new HashSet<>();
+        for (Audience audience : event.viewers()) {
+            if (audience instanceof Player p) {
+                recipients.add(p);
+            }
+        }
+
+        processChatSounds(player, message, recipients, event.isCancelled());
+    }
+
+    // 2. Legacy Spigot AsyncPlayerChatEvent (Fallback for non-Paper servers)
+    @SuppressWarnings("deprecation")
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onAsyncPlayerChat(AsyncPlayerChatEvent event) {
+        if (IS_PAPER) {
+            // Already handled natively by onPaperAsyncChat
+            return;
+        }
+
+        if (event.isCancelled()) return;
+
+        Player player = event.getPlayer();
+        String message = event.getMessage();
+        Set<Player> recipients = new HashSet<>(event.getRecipients());
+
+        processChatSounds(player, message, recipients, event.isCancelled());
     }
 }
