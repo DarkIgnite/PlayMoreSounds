@@ -138,11 +138,6 @@ public class PlaySoundEvent extends Event implements Cancellable {
     public boolean validateListener(@NotNull Player listener) {
         SoundOptions options = getSound().getOptions();
 
-        // If listener has disabled chat via ChatControl, do NOT play any chat sound to this listener
-        if (isChatDisabledInChatControl(listener.getUniqueId())) {
-            return false;
-        }
-
         return (options.ignoresDisabled() || SoundManager.getSoundsState(listener))
                 && (options.getPermissionToListen() == null || listener.hasPermission(options.getPermissionToListen()))
                 && (sourcePlayer == null || listener.canSee(sourcePlayer));
